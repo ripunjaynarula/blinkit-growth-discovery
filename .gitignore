@@ -1,0 +1,44 @@
+# Environment variables & secrets (CRITICAL: Do NOT commit!)
+.env
+.env.dev
+.env.prod
+.env.local
+.env.*.local
+.streamlit/secrets.toml
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Data & Output Caches / Downloads
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/output/*
+!data/output/.gitkeep
+*.csv
+*.zip
+*.json
+!analysis/*.json
+
+# IDEs & System files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
