@@ -589,6 +589,8 @@ with st.sidebar.expander("⚙️ AI Provider & Key Settings", expanded=False):
         _FilterArgs.model = config.OPENROUTER_MODEL
         _AnalyzeArgs.model = config.OPENROUTER_MODEL
 
+active_model = _FilterArgs.model
+
 navigation_page = st.sidebar.radio(
     "Navigation",
     ["Dashboard", "Collect Reviews", "Filter Reviews",
@@ -944,7 +946,7 @@ elif navigation_page == "Filter Reviews":
 
                     stage_status.info("Stage 1/3 — Pre-filtering by catalog keywords…")
                     progress.progress(0.2)
-                    stage_status.info(f"Stage 2/3 — Running Cloudflare Workers AI relevance assessment ({active_model})…")
+                    stage_status.info(f"Stage 2/3 — Running {config.LLM_PROVIDER.title()} AI relevance assessment ({active_model})…")
                     progress.progress(0.4)
                     summary = run_stage_filter(_Args(), progress_callback=make_progress_cb("Relevance Filtering"))
 
@@ -1042,7 +1044,7 @@ elif navigation_page == "Analyze Reviews":
                     _Args.batch_size = int(batch_size)
                     _Args.continue_on_error = cont_err
 
-                    stage_status.info(f"Sending batches to Cloudflare Workers AI ({active_model}) for classification…")
+                    stage_status.info(f"Sending batches to {config.LLM_PROVIDER.title()} AI ({active_model}) for classification…")
                     progress.progress(0.2)
                     n = run_stage_analyze(_Args(), progress_callback=make_progress_cb("Insight Extraction"))
                     progress.progress(1.0, text=f"Done — {n} reviews ({elapsed(t0)})")
