@@ -26,11 +26,15 @@ venv.bak/
 # Data & Output Caches / Downloads
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/reddit_cached_reviews.csv
+!data/raw/raw_reviews.csv
 data/processed/*
 !data/processed/.gitkeep
 data/output/*
 !data/output/.gitkeep
 *.csv
+!data/raw/reddit_cached_reviews.csv
+!data/raw/raw_reviews.csv
 *.zip
 *.json
 !analysis/*.json

@@ -67,8 +67,8 @@ OPENROUTER_FALLBACK_CHAIN = [
 # Active Default Model Selection
 DEFAULT_MODEL = CLOUDFLARE_MODEL if LLM_PROVIDER == "cloudflare" else GROQ_MODEL
 
-# Pipeline Processing Defaults (Updated default limit to 200 reviews per source)
-DEFAULT_LIMIT = 200
+# Pipeline Processing Defaults (Updated default limit to 500 reviews per source)
+DEFAULT_LIMIT = 500
 DEFAULT_BATCH_SIZE_FILTER = 10
 DEFAULT_BATCH_SIZE_ANALYZE = 5
 DEFAULT_MAX_RETRIES = 3
@@ -83,7 +83,7 @@ GOOGLE_PLAY_APP_ID = get_env_var("GOOGLE_PLAY_APP_ID", "com.grofers.customerapp"
 GOOGLE_PLAY_COUNTRY = get_env_var("GOOGLE_PLAY_COUNTRY", "in")
 GOOGLE_PLAY_LANGUAGE = get_env_var("GOOGLE_PLAY_LANGUAGE", "en")
 
-BLINKIT_APP_STORE_ID = get_env_var("BLINKIT_APP_STORE_ID", "1603223010")
+BLINKIT_APP_STORE_ID = get_env_var("BLINKIT_APP_STORE_ID", "960335206")
 APP_STORE_APP_ID = BLINKIT_APP_STORE_ID
 APP_STORE_COUNTRY = get_env_var("APP_STORE_COUNTRY", "in")
 

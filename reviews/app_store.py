@@ -35,15 +35,20 @@ def collect_app_store_reviews(
     reviews: list[RawReview] = []
     seen_ids: set[str] = set()
 
-    for page in range(1, 10):
+    urls = [
+        f"https://itunes.apple.com/{country}/rss/customerreviews/id={app_id}/json",
+    ] + [
+        f"https://itunes.apple.com/{country}/rss/customerreviews/page={p}/id={app_id}/json"
+        for p in range(1, 11)
+    ]
+
+    for url in urls:
         if len(reviews) >= limit:
             break
-
-        url = f"https://itunes.apple.com/{country}/rss/customerreviews/page={page}/id={app_id}/sortby=mostrecent/json"
         try:
             response = requests.get(url, headers=headers, timeout=15)
             if response.status_code != 200:
-                break
+                continue
 
             payload = response.json()
             entries = payload.get("feed", {}).get("entry", [])
@@ -51,7 +56,7 @@ def collect_app_store_reviews(
                 entries = [entries] if isinstance(entries, dict) else []
 
             if not entries:
-                break
+                continue
 
             for entry in entries:
                 if len(reviews) >= limit:
