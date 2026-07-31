@@ -67,8 +67,8 @@ OPENROUTER_FALLBACK_CHAIN = [
 # Active Default Model Selection
 DEFAULT_MODEL = CLOUDFLARE_MODEL if LLM_PROVIDER == "cloudflare" else GROQ_MODEL
 
-# Pipeline Processing Defaults (Updated default limit to 500 reviews per source)
-DEFAULT_LIMIT = 500
+# Pipeline Processing Defaults (Updated default limit to 250 reviews per source for 700 total)
+DEFAULT_LIMIT = 250
 DEFAULT_BATCH_SIZE_FILTER = 10
 DEFAULT_BATCH_SIZE_ANALYZE = 5
 DEFAULT_MAX_RETRIES = 3
