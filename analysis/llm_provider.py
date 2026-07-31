@@ -18,9 +18,15 @@ import config
 
 
 class LLMProviderError(RuntimeError):
-    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        retry_after_seconds: float | None = None,
+        is_quota_exceeded: bool = False,
+    ) -> None:
         super().__init__(message)
         self.retry_after_seconds = retry_after_seconds
+        self.is_quota_exceeded = is_quota_exceeded
 
 
 class LLMProvider(abc.ABC):
@@ -198,30 +204,41 @@ class CloudflareWorkersAIProvider(LLMProvider):
 
         body_text = response.text.strip()
         retry_after = _parse_retry_after(response.headers.get("Retry-After")) or _parse_retry_after_from_text(body_text)
+        is_quota = (
+            "10,000 neurons" in body_text.lower()
+            or "used up your daily free allocation" in body_text.lower()
+            or "4006" in body_text
+            or "quota" in body_text.lower()
+        )
 
         if response.status_code == 401:
             raise LLMProviderError(
                 f"Cloudflare Authentication failed (HTTP 401). Invalid API Token. Response: {body_text}",
                 retry_after_seconds=retry_after,
+                is_quota_exceeded=is_quota,
             )
         if response.status_code == 403:
             raise LLMProviderError(
                 f"Cloudflare Workers AI Permission Denied (HTTP 403). Check Account ID and Token scope. Response: {body_text}",
                 retry_after_seconds=retry_after,
+                is_quota_exceeded=is_quota,
             )
         if response.status_code == 404:
             raise LLMProviderError(
                 f"Cloudflare Model or Account ID not found (HTTP 404). Response: {body_text}",
                 retry_after_seconds=retry_after,
+                is_quota_exceeded=is_quota,
             )
-        if response.status_code == 429:
+        if response.status_code == 429 or is_quota:
             raise LLMProviderError(
-                f"Cloudflare Workers AI rate limit exceeded (HTTP 429). Response: {body_text}",
+                f"Cloudflare Workers AI rate limit / daily free neuron quota exceeded: {body_text}",
                 retry_after_seconds=retry_after,
+                is_quota_exceeded=is_quota,
             )
         raise LLMProviderError(
             f"Cloudflare API request failed with HTTP {response.status_code}: {body_text}",
             retry_after_seconds=retry_after,
+            is_quota_exceeded=is_quota,
         )
 
 

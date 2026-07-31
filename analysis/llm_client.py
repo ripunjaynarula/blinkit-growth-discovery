@@ -115,70 +115,90 @@ def generate_parsed_json_with_fallback(
     task_type: str = "analysis",
     api_key_override: str | None = None,
     account_id_override: str | None = None,
+    provider_override: str | None = None,
 ) -> dict[str, Any]:
     """Generates structured JSON responses with INSTANT model rotation on rate limits and multi-provider fallbacks."""
-    provider = get_llm_provider()
-    candidates: list[str] = []
+    primary = get_llm_provider(provider_override)
     
-    selected_model = model or provider.default_model
-    if selected_model not in provider.fallback_chain:
-        candidates.append(selected_model)
-    candidates.extend(provider.fallback_chain)
+    from analysis.llm_provider import _PROVIDERS
+    provider_chain: list[LLMProvider] = [primary]
+    for name, p in _PROVIDERS.items():
+        if p.name != primary.name:
+            provider_chain.append(p)
 
     last_exc: Exception | None = None
 
-    for candidate_model in candidates:
-        computed_max_tokens = max_tokens or get_model_max_tokens(candidate_model, task_type)
+    for provider in provider_chain:
+        # Verify credentials before attempting provider
+        if provider.name == "cloudflare" and not (api_key_override or config.CLOUDFLARE_API_TOKEN or config.get_env_var("CLOUDFLARE_API_TOKEN")):
+            continue
+        if provider.name == "groq" and not (api_key_override or config.GROQ_API_KEY or config.get_env_var("GROQ_API_KEY")):
+            continue
+        if provider.name == "openrouter" and not (api_key_override or config.OPENROUTER_API_KEY or config.get_env_var("OPENROUTER_API_KEY")):
+            continue
 
-        for attempt in range(2):
-            try:
-                raw_content, latency = provider.generate_raw_response(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
-                    model=candidate_model,
-                    max_tokens=computed_max_tokens,
-                    api_key_override=api_key_override,
-                    account_id_override=account_id_override,
-                )
-                print(f"[{provider.name.title()} AI] Model: '{candidate_model}' | Latency: {latency:.2f}s")
-                return parse_json_response(raw_content)
+        selected_model = model if provider.name == primary.name else provider.default_model
+        candidates: list[str] = []
+        if selected_model not in provider.fallback_chain:
+            candidates.append(selected_model)
+        candidates.extend(provider.fallback_chain)
 
-            except LLMProviderError as exc:
-                last_exc = exc
-                msg = str(exc)
+        for candidate_model in candidates:
+            computed_max_tokens = max_tokens or get_model_max_tokens(candidate_model, task_type)
 
-                if "context" in msg.lower() or "length" in msg.lower() or "too large" in msg.lower() or "token" in msg.lower():
-                    ADAPTIVE_ENGINE.adapt_on_token_cap(task_type, msg)
+            for attempt in range(2):
+                try:
+                    raw_content, latency = provider.generate_raw_response(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        model=candidate_model,
+                        max_tokens=computed_max_tokens,
+                        api_key_override=api_key_override if provider.name == primary.name else None,
+                        account_id_override=account_id_override if provider.name == primary.name else None,
+                    )
+                    print(f"[{provider.name.title()} AI] Model: '{candidate_model}' | Latency: {latency:.2f}s")
+                    return parse_json_response(raw_content)
 
-                retry_sec = exc.retry_after_seconds
+                except LLMProviderError as exc:
+                    last_exc = exc
+                    msg = str(exc)
 
-                # Short wait (<= 15s): quick sleep and retry
-                if retry_sec is not None and 0 < retry_sec <= 15:
-                    wait_time = retry_sec + 1.0
-                    print(f"[{provider.name.title()} Quick Pause] Model '{candidate_model}' rate limit. Sleeping {wait_time:.1f}s...")
-                    time.sleep(wait_time)
-                    continue
+                    if getattr(exc, "is_quota_exceeded", False) or "10,000 neurons" in msg.lower() or "4006" in msg:
+                        print(f"⚡ [{provider.name.title()} AI] Daily free neuron allocation / quota limit exceeded! Instantly failing over to backup provider...")
+                        break  # Break out of candidate_model loop for this provider to try next provider!
 
-                # Long wait (> 15s): Rotate immediately to next candidate model!
-                if retry_sec is not None and retry_sec > 15:
-                    mins = int(retry_sec // 60)
-                    secs = int(retry_sec % 60)
-                    time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-                    print(f"[{provider.name.title()} Model Rotation] Model '{candidate_model}' hit rate limit ({time_str} cooldown). Instantly switching to next model in chain...")
+                    if "context" in msg.lower() or "length" in msg.lower() or "too large" in msg.lower() or "token" in msg.lower():
+                        ADAPTIVE_ENGINE.adapt_on_token_cap(task_type, msg)
+
+                    retry_sec = exc.retry_after_seconds
+
+                    # Short wait (<= 15s): quick sleep and retry
+                    if retry_sec is not None and 0 < retry_sec <= 15:
+                        wait_time = retry_sec + 1.0
+                        print(f"[{provider.name.title()} Quick Pause] Model '{candidate_model}' rate limit. Sleeping {wait_time:.1f}s...")
+                        time.sleep(wait_time)
+                        continue
+
+                    # Long wait (> 15s): Rotate immediately to next candidate model!
+                    if retry_sec is not None and retry_sec > 15:
+                        mins = int(retry_sec // 60)
+                        secs = int(retry_sec % 60)
+                        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+                        print(f"[{provider.name.title()} Model Rotation] Model '{candidate_model}' hit rate limit ({time_str} cooldown). Instantly switching to next model in chain...")
+                        break
+
+                    print(f"[{provider.name.title()} Fallback] Model '{candidate_model}' error: {exc}. Trying next model...")
                     break
 
-                print(f"[{provider.name.title()} Fallback] Model '{candidate_model}' error: {exc}. Trying next model...")
-                break
-
-            except (AnalysisError, Exception) as exc:
-                last_exc = exc
-                print(f"[{provider.name.title()} Fallback] Model '{candidate_model}' failed JSON parse/request: {exc}. Trying next model...")
-                time.sleep(1.0)
-                break
+                except (AnalysisError, Exception) as exc:
+                    last_exc = exc
+                    print(f"[{provider.name.title()} Fallback] Model '{candidate_model}' failed JSON parse/request: {exc}. Trying next model...")
+                    time.sleep(1.0)
+                    break
 
     if last_exc:
-        raise LLMRequestError(str(last_exc))
-    raise AnalysisError(f"All {provider.name.title()} model fallback candidates failed.")
+        raise LLMRequestError(f"AI Provider Limit Reached: {last_exc}")
+    raise AnalysisError("All AI provider candidates and model fallbacks failed. Please check API keys and daily quotas.")
 
 
 def generate_json_content_with_fallback(

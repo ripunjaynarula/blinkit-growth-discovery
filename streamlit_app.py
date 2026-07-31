@@ -550,14 +550,44 @@ st.sidebar.markdown("<h2 style='color:#F7C600;margin-bottom:0;'>Blinkit Growth</
 st.sidebar.caption("AI Quick-Commerce Catalog Discovery Platform")
 st.sidebar.markdown("---")
 
-provider_key = config.LLM_PROVIDER
-active_model = config.DEFAULT_MODEL
-_FilterArgs.account_id = config.CLOUDFLARE_ACCOUNT_ID
-_FilterArgs.api_key = config.CLOUDFLARE_API_TOKEN
-_FilterArgs.model = config.CLOUDFLARE_MODEL
-_AnalyzeArgs.account_id = config.CLOUDFLARE_ACCOUNT_ID
-_AnalyzeArgs.api_key = config.CLOUDFLARE_API_TOKEN
-_AnalyzeArgs.model = config.CLOUDFLARE_MODEL
+with st.sidebar.expander("⚙️ AI Provider & Key Settings", expanded=False):
+    selected_provider = st.selectbox(
+        "Active AI Provider",
+        ["cloudflare", "groq", "openrouter"],
+        index=["cloudflare", "groq", "openrouter"].index(config.LLM_PROVIDER) if config.LLM_PROVIDER in ["cloudflare", "groq", "openrouter"] else 0,
+        help="Cloudflare Workers AI free tier allows 10,000 neurons/day. If daily allocation is reached, switch to Groq (Free 14,400 requests/day) or OpenRouter."
+    )
+    config.LLM_PROVIDER = selected_provider
+
+    if selected_provider == "cloudflare":
+        cf_acc = st.text_input("Cloudflare Account ID", value=config.CLOUDFLARE_ACCOUNT_ID, type="password")
+        cf_tok = st.text_input("Cloudflare API Token", value=config.CLOUDFLARE_API_TOKEN, type="password")
+        if cf_acc:
+            config.CLOUDFLARE_ACCOUNT_ID = cf_acc
+            _FilterArgs.account_id = cf_acc
+            _AnalyzeArgs.account_id = cf_acc
+        if cf_tok:
+            config.CLOUDFLARE_API_TOKEN = cf_tok
+            _FilterArgs.api_key = cf_tok
+            _AnalyzeArgs.api_key = cf_tok
+        _FilterArgs.model = config.CLOUDFLARE_MODEL
+        _AnalyzeArgs.model = config.CLOUDFLARE_MODEL
+    elif selected_provider == "groq":
+        groq_key = st.text_input("Groq API Key (Free 14.4k req/day)", value=config.GROQ_API_KEY, type="password")
+        if groq_key:
+            config.GROQ_API_KEY = groq_key
+            _FilterArgs.api_key = groq_key
+            _AnalyzeArgs.api_key = groq_key
+        _FilterArgs.model = config.GROQ_MODEL
+        _AnalyzeArgs.model = config.GROQ_MODEL
+    elif selected_provider == "openrouter":
+        or_key = st.text_input("OpenRouter API Key", value=config.OPENROUTER_API_KEY, type="password")
+        if or_key:
+            config.OPENROUTER_API_KEY = or_key
+            _FilterArgs.api_key = or_key
+            _AnalyzeArgs.api_key = or_key
+        _FilterArgs.model = config.OPENROUTER_MODEL
+        _AnalyzeArgs.model = config.OPENROUTER_MODEL
 
 navigation_page = st.sidebar.radio(
     "Navigation",
@@ -566,7 +596,7 @@ navigation_page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.caption("⚡ Powered by Cloudflare Workers AI")
+st.sidebar.caption(f"⚡ Active Provider: {config.LLM_PROVIDER.title()}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOAD DATASETS
